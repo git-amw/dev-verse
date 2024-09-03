@@ -32,7 +32,7 @@ func (ac *accountController) CreateUser(ctx *gin.Context) {
 	if ok {
 		ctx.JSON(http.StatusCreated, "User is Created!!")
 	} else {
-		ctx.JSON(http.StatusInternalServerError, "Failed to Has password")
+		ctx.JSON(http.StatusInternalServerError, "Failed to Hash password")
 
 	}
 }
@@ -43,10 +43,10 @@ func (ac *accountController) SignInUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	ok := ac.accountService.SignInUser(singinModel)
+	ok, message := ac.accountService.SignInUser(singinModel)
 	if ok {
-		ctx.JSON(http.StatusOK, "Signedin Successfully!!")
+		ctx.JSON(http.StatusOK, gin.H{"token": message})
 	} else {
-		ctx.JSON(http.StatusUnauthorized, "Incorrect password")
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": message})
 	}
 }
