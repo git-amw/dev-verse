@@ -21,5 +21,7 @@ func SetupRouter() *gin.Engine {
 	routes.GET("/allblogs", blogController.GetAllBlog)
 	routes.POST("/createblog", middleware.AuthMiddleware, blogController.CreateBlog)
 
+	routes.GET("/alltags", blogController.GetAllTags)
+
 	return routes
 }

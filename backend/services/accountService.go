@@ -1,44 +1,58 @@
 package services
 
 import (
+	"errors"
 	"time"
 
+	"github.com/git-amw/backend/data"
 	"github.com/git-amw/backend/models"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AccountService interface {
-	CreateUser(singnupModel models.SignUp) bool
+	CreateUser(singnupModel models.SignUp) (bool, string)
 	SignInUser(singinModel models.SignIn) (bool, string)
 }
 
-type accountService struct{}
+type accountService struct {
+	DB *gorm.DB
+}
 
 func NewAccountService() AccountService {
-	return &accountService{}
+	return &accountService{
+		DB: data.ConnectToDB(),
+	}
 }
 
-var users = map[string]string{}
-
-func (s *accountService) CreateUser(signupModel models.SignUp) bool {
+func (as *accountService) CreateUser(signupModel models.SignUp) (bool, string) {
 	hashedpassword, err := HashPassword(signupModel.Password)
 	if err != nil {
-		return false
+		return false, "Failed to Hash Password"
 	}
-	users[signupModel.Email] = hashedpassword
-	return true
+	signupModel.Password = hashedpassword
+	if result := as.DB.Table("sign_ups").Create(&signupModel); result.Error != nil {
+		return false, result.Error.Error()
+	}
+	return true, "User Successfully Created"
 }
 
-func (s *accountService) SignInUser(singinModel models.SignIn) (bool, string) {
-	storedPassword, exists := users[singinModel.Email]
-	if !exists {
-		return false, "User Already Exists"
+func (as *accountService) SignInUser(singinModel models.SignIn) (bool, string) {
+	var user = struct{ Password string }{}
+	if userData := as.DB.Table("sign_ups").Where("email = ?", singinModel.Email).First(&user); userData.Error != nil {
+		if errors.Is(userData.Error, gorm.ErrRecordNotFound) {
+			return false, "Recode Not Found"
+		} else {
+			return false, userData.Error.Error()
+		}
+	} else {
+		if !CheckPasswordHash(singinModel.Password, user.Password) {
+			return false, "Incorrect Password"
+		}
+		return GenerateToken(singinModel)
 	}
-	if !CheckPasswordHash(singinModel.Password, storedPassword) {
-		return false, "Incorrect Password"
-	}
-	return GenerateToken(singinModel)
+
 }
 
 func HashPassword(password string) (string, error) {

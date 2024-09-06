@@ -28,12 +28,11 @@ func (ac *accountController) CreateUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	ok := ac.accountService.CreateUser(singupModel)
+	ok, message := ac.accountService.CreateUser(singupModel)
 	if ok {
-		ctx.JSON(http.StatusCreated, "User is Created!!")
+		ctx.JSON(http.StatusCreated, gin.H{"message": message})
 	} else {
-		ctx.JSON(http.StatusInternalServerError, "Failed to Hash password")
-
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": message})
 	}
 }
 
