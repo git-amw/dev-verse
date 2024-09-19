@@ -11,11 +11,15 @@ type BlogDTO struct {
 	Title   string `json:"title"`
 	TagsId  []int  `json:"tags"`
 	Content string `json:"content"`
-	// Likes   int      `json:"likes"`
 }
 
 type BlogTags struct {
 	ID     uint `gorm:"primaryKey"`
 	BlogId int
 	TagId  int
+}
+
+type BlogUpdateDTO struct {
+	BlogDTO BlogDTO `json:"blogdto"`
+	ID      int     `json:"id"`
 }

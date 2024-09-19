@@ -8,10 +8,11 @@ import (
 
 type BlogService interface {
 	CreateBlog(models.BlogDTO) (bool, string)
-	GetAllBlog()
-	UpdateBlog()
-	DeleteBlog()
+	GetAllBlog() []models.Blog
+	UpdateBlog(models.BlogUpdateDTO) (bool, string)
+	DeleteBlog(blogId int) (bool, string)
 	GetAllTags() []models.Tags
+	IncreaseLike(blogId int)
 }
 
 type blogService struct {
@@ -29,27 +30,68 @@ func (bs *blogService) CreateBlog(blogDTO models.BlogDTO) (bool, string) {
 	if result := bs.DB.Table("blogs").Create(&blogModel); result.Error != nil {
 		return false, result.Error.Error()
 	}
+	bs.AddBlogTags(blogDTO, int(blogModel.ID))
+	return true, "Blogs is Created"
+}
+func (bs *blogService) GetAllBlog() []models.Blog {
+	var allblogs []models.Blog
+	bs.DB.Table("blogs").Find(&allblogs)
+	return allblogs
+}
+func (bs *blogService) UpdateBlog(updateDTO models.BlogUpdateDTO) (bool, string) {
+	blogModel := MapDTOToModel(updateDTO.BlogDTO)
+	blogModel.ID = uint(updateDTO.ID)
+	if res := bs.DB.Table("blogs").Updates(&blogModel); res.Error != nil {
+		return false, res.Error.Error()
+	}
+	bs.AddBlogTags(updateDTO.BlogDTO, updateDTO.ID)
+	return true, "Done"
+}
+func (bs *blogService) DeleteBlog(blogId int) (bool, string) {
+	var deleteBlog models.Blog
+	var deleteBlogTags []models.BlogTags
+	if res := bs.DB.Table("blogs").Where("ID = ?", blogId).First(&deleteBlog); res.Error != nil {
+		return false, res.Error.Error()
+	}
+	if res := bs.DB.Table("blog_tags").Where("blog_id = ?", blogId).Find(&deleteBlogTags); res.Error != nil {
+		return false, res.Error.Error()
+	}
+	bs.DB.Table("blogs").Delete(&deleteBlog)
+	bs.DB.Table("blog_tags").Delete(&deleteBlogTags)
+	var tagIds []int
+	for _, blogtag := range deleteBlogTags {
+		tagIds = append(tagIds, blogtag.TagId)
+	}
+	bs.ChangeCountOfTags(tagIds, -1)
+	return true, "Successfully deleted!!"
+}
+
+func (bs *blogService) IncreaseLike(blogId int) {
+	var likes int
+	bs.DB.Table("blogs").Where("Id = ?", blogId).Pluck("likes", &likes)
+	bs.DB.Table("blogs").Where("Id = ?", blogId).UpdateColumn("likes", likes+1)
+}
+
+func (bs *blogService) AddBlogTags(blogDTO models.BlogDTO, blogId int) (bool, string) {
 	for _, tagId := range blogDTO.TagsId {
 		var blogTags models.BlogTags
-		blogTags.BlogId = int(blogModel.ID)
+		blogTags.BlogId = blogId
 		blogTags.TagId = tagId
 		if result := bs.DB.Table("blog_tags").Create(&blogTags); result.Error != nil {
 			return false, result.Error.Error()
 		}
-		var numberOfBlogs int
-		bs.DB.Table("tags").Where("ID = ? ", tagId).Pluck("blogs_with_tag", &numberOfBlogs)
-		bs.DB.Table("tags").Where("ID = ? ", tagId).UpdateColumn("blogs_with_tag", numberOfBlogs+1)
 	}
-	return true, "Blogs is Created"
+	bs.ChangeCountOfTags(blogDTO.TagsId, 1)
+	return true, "Done"
 }
-func (bs *blogService) GetAllBlog() {
-	// return bs.allBlogs
-}
-func (bs *blogService) UpdateBlog() {
 
-}
-func (bs *blogService) DeleteBlog() {
-
+func (bs *blogService) ChangeCountOfTags(tagIds []int, val int) {
+	var countOfTags []int
+	bs.DB.Table("tags").Where("ID IN (?) ", tagIds).Pluck("blogs_with_tag", &countOfTags)
+	for i, id := range tagIds {
+		countOfTags[i] += val
+		bs.DB.Table("tags").Where("ID = ? ", id).UpdateColumn("blogs_with_tag", countOfTags[i])
+	}
 }
 
 func (bs *blogService) GetAllTags() []models.Tags {
