@@ -4,29 +4,28 @@ import (
 	"errors"
 	"time"
 
-	"github.com/git-amw/backend/data"
 	"github.com/git-amw/backend/models"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
-type AccountService interface {
+type AccountServiceProvider interface {
 	CreateUser(singnupModel models.SignUp) (bool, string)
 	SignInUser(singinModel models.SignIn) (bool, string)
 }
 
-type accountService struct {
+type AccountService struct {
 	DB *gorm.DB
 }
 
-func NewAccountService() AccountService {
-	return &accountService{
-		DB: data.ConnectToDB(),
+func NewAccountService(db *gorm.DB) AccountServiceProvider {
+	return &AccountService{
+		DB: db,
 	}
 }
 
-func (as *accountService) CreateUser(signupModel models.SignUp) (bool, string) {
+func (as *AccountService) CreateUser(signupModel models.SignUp) (bool, string) {
 	hashedpassword, err := HashPassword(signupModel.Password)
 	if err != nil {
 		return false, "Failed to Hash Password"
@@ -38,8 +37,11 @@ func (as *accountService) CreateUser(signupModel models.SignUp) (bool, string) {
 	return true, "User Successfully Created"
 }
 
-func (as *accountService) SignInUser(singinModel models.SignIn) (bool, string) {
-	var user = struct{ Password string }{}
+func (as *AccountService) SignInUser(singinModel models.SignIn) (bool, string) {
+	var user = struct {
+		ID       uint
+		Password string
+	}{}
 	if userData := as.DB.Table("sign_ups").Where("email = ?", singinModel.Email).First(&user); userData.Error != nil {
 		if errors.Is(userData.Error, gorm.ErrRecordNotFound) {
 			return false, "Recode Not Found"
@@ -50,7 +52,7 @@ func (as *accountService) SignInUser(singinModel models.SignIn) (bool, string) {
 		if !CheckPasswordHash(singinModel.Password, user.Password) {
 			return false, "Incorrect Password"
 		}
-		return GenerateToken(singinModel)
+		return GenerateToken(singinModel, user.ID)
 	}
 
 }
@@ -65,10 +67,11 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func GenerateToken(singinModel models.SignIn) (bool, string) {
+func GenerateToken(singinModel models.SignIn, id uint) (bool, string) {
 	generateToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email": singinModel.Email,
-		"exp":   time.Now().Add(time.Minute * 15).Unix(),
+		"email":  singinModel.Email,
+		"exp":    time.Now().Add(time.Minute * 15).Unix(),
+		"userid": id,
 	})
 	token, err := generateToken.SignedString([]byte("SECRET_KEY"))
 	if err != nil {

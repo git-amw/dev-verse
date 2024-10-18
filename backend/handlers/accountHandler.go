@@ -1,4 +1,4 @@
-package controllers
+package handlers
 
 import (
 	"github.com/gin-gonic/gin"
@@ -7,22 +7,22 @@ import (
 	"net/http"
 )
 
-type AccountController interface {
+type AccountHandler interface {
 	CreateUser(ctx *gin.Context)
 	SignInUser(ctx *gin.Context)
 }
 
-type accountController struct {
-	accountService services.AccountService
+type accountHandler struct {
+	accountService services.AccountServiceProvider
 }
 
-func NewAccountController(accountService services.AccountService) AccountController {
-	return &accountController{
+func NewAccountHandler(accountService services.AccountServiceProvider) AccountHandler {
+	return &accountHandler{
 		accountService: accountService,
 	}
 }
 
-func (ac *accountController) CreateUser(ctx *gin.Context) {
+func (ac *accountHandler) CreateUser(ctx *gin.Context) {
 	var singupModel models.SignUp
 	if err := ctx.ShouldBindBodyWithJSON(&singupModel); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -36,7 +36,7 @@ func (ac *accountController) CreateUser(ctx *gin.Context) {
 	}
 }
 
-func (ac *accountController) SignInUser(ctx *gin.Context) {
+func (ac *accountHandler) SignInUser(ctx *gin.Context) {
 	var singinModel models.SignIn
 	if err := ctx.ShouldBindJSON(&singinModel); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

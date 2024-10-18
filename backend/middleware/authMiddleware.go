@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -21,13 +22,22 @@ func AuthMiddleware(ctx *gin.Context) {
 		ctx.Abort()
 		return
 	}
-	_, err := jwt.Parse(tokenString[1], func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString[1], func(token *jwt.Token) (interface{}, error) {
 		return []byte("SECRET_KEY"), nil
 	})
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 		ctx.Abort()
 		return
+	}
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		userId, ok := claims["userid"]
+		if !ok {
+			log.Println("user id not found - auth middelware")
+			ctx.Abort()
+			return
+		}
+		ctx.Set("userid", userId)
 	}
 	ctx.Next()
 }

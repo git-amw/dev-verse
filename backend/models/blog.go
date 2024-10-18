@@ -1,25 +1,49 @@
 package models
 
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
 type Blog struct {
-	ID      uint `gorm:"primaryKey"`
-	Title   string
-	Content string
-	Likes   int
+	ID        uint           `gorm:"primaryKey"`
+	Title     string         `json:"title"`
+	Content   string         `json:"content"`
+	Likes     int            `json:"likes"`
+	BlogTags  []BlogTags     `json:"blogTags" gorm:"foreignKey:BlogId;constraint:OnDelete:CASCADE;"`
+	UserBlogs []UserBlog     `json:"userBlogs" gorm:"foreignKey:BlogId;constraint:OnDelete:CASCADE;"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`
+}
+
+type BlogTags struct {
+	ID        uint           `gorm:"primaryKey"`
+	BlogId    uint           `gorm:"index"`
+	TagId     int            `json:"tagid"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`
+}
+
+type UserBlog struct {
+	ID        uint           `gorm:"primaryKey"`
+	UserId    uint           `gorm:"index"`
+	BlogId    uint           `gorm:"index"`
+	Favblog   bool           `gorm:"default:false"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`
 }
 
 type BlogDTO struct {
 	Title   string `json:"title"`
-	TagsId  []int  `json:"tags"`
+	TagIds  []int  `json:"tags"`
 	Content string `json:"content"`
 }
 
-type BlogTags struct {
-	ID     uint `gorm:"primaryKey"`
-	BlogId int
-	TagId  int
-}
-
-type BlogUpdateDTO struct {
-	BlogDTO BlogDTO `json:"blogdto"`
-	ID      int     `json:"id"`
+type BlogUpdate struct {
+	BlogData Blog `json:"blogupdatedata"`
+	ID       int  `json:"id"`
 }
