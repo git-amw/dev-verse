@@ -19,6 +19,7 @@ type BlogHandlerProvider interface {
 	GetAllTags(ctx *gin.Context)
 	IncreaseLike(ctx *gin.Context)
 	SearchTags(ctx *gin.Context)
+	SearchBlog(ctx *gin.Context)
 }
 
 type BlogHandler struct {
@@ -31,7 +32,7 @@ func NewBlogHandler(blogService services.BlogServiceProvider) BlogHandlerProvide
 	}
 }
 
-func (bc *BlogHandler) CreateBlog(ctx *gin.Context) {
+func (bh *BlogHandler) CreateBlog(ctx *gin.Context) {
 	userId, ok := ctx.Get("userid")
 	if !ok {
 		log.Println("User Id not found -blog Handler")
@@ -43,7 +44,7 @@ func (bc *BlogHandler) CreateBlog(ctx *gin.Context) {
 		return
 	}
 	uid := ConvertId(userId)
-	success, message := bc.blogService.CreateBlog(blogData, uid)
+	success, message := bh.blogService.CreateBlog(blogData, uid)
 	if success {
 		ctx.JSON(http.StatusCreated, gin.H{"message": message})
 	} else {
@@ -52,18 +53,18 @@ func (bc *BlogHandler) CreateBlog(ctx *gin.Context) {
 
 }
 
-func (bc *BlogHandler) GetAllBlog(ctx *gin.Context) {
-	var result = bc.blogService.GetAllBlog()
+func (bh *BlogHandler) GetAllBlog(ctx *gin.Context) {
+	var result = bh.blogService.GetAllBlog()
 	ctx.JSON(http.StatusOK, result)
 }
 
-func (bc *BlogHandler) UpdateBlog(ctx *gin.Context) {
+func (bh *BlogHandler) UpdateBlog(ctx *gin.Context) {
 	var updateData models.BlogUpdate
 	if err := ctx.ShouldBindJSON(&updateData); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	success, message := bc.blogService.UpdateBlog(updateData)
+	success, message := bh.blogService.UpdateBlog(updateData)
 	if success {
 		ctx.JSON(http.StatusOK, gin.H{"message": "You've Updated the blog with id : " + strconv.Itoa(int(updateData.ID))})
 		return
@@ -71,14 +72,14 @@ func (bc *BlogHandler) UpdateBlog(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"error": message})
 }
 
-func (bc *BlogHandler) DeleteBlog(ctx *gin.Context) {
+func (bh *BlogHandler) DeleteBlog(ctx *gin.Context) {
 	Id := ctx.Param("id")
 	blogId, err := strconv.Atoi(Id)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Error in Converting Id"})
 		return
 	}
-	success, message := bc.blogService.DeleteBlog(blogId)
+	success, message := bh.blogService.DeleteBlog(blogId)
 	if success {
 		ctx.JSON(http.StatusOK, gin.H{"message": "You've delted the blog with id : " + Id})
 		return
@@ -86,28 +87,60 @@ func (bc *BlogHandler) DeleteBlog(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"error": message})
 }
 
-func (bc *BlogHandler) DeleteTagFromBlog(ctx *gin.Context) {
+func (bh *BlogHandler) DeleteTagFromBlog(ctx *gin.Context) {
 
 }
 
-func (bc *BlogHandler) GetAllTags(ctx *gin.Context) {
-	result := bc.blogService.GetAllTags()
+func (bh *BlogHandler) GetAllTags(ctx *gin.Context) {
+	result := bh.blogService.GetAllTags()
 	ctx.JSON(http.StatusOK, result)
 }
 
-func (bc *BlogHandler) IncreaseLike(ctx *gin.Context) {
+func (bh *BlogHandler) IncreaseLike(ctx *gin.Context) {
 	Id := ctx.Param("id")
 	blogId, err := strconv.Atoi(Id)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Error in Converting Id"})
 		return
 	}
-	bc.blogService.IncreaseLike(blogId)
+	bh.blogService.IncreaseLike(blogId)
 	ctx.JSON(http.StatusOK, gin.H{"message": "You liked the blog with id :" + Id})
 }
 
-func (bc *BlogHandler) SearchTags(ctx *gin.Context) {
-	bc.blogService.SearchTags()
+func (bh *BlogHandler) SearchTags(ctx *gin.Context) {
+	tagValue := ctx.Query("tagValue")
+	log.Println(tagValue)
+	if tagValue == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Tag query parameter is required"})
+		return
+	}
+	tagSearchResponse := bh.blogService.SearchTags(tagValue)
+	if tagSearchResponse.TagId == 0 {
+		ctx.JSON(http.StatusNotFound, gin.H{"message": "No tag found"})
+		return
+	}
+	ctx.JSON(http.StatusFound, gin.H{"tag": tagSearchResponse})
+}
+
+func (bh *BlogHandler) SearchBlog(ctx *gin.Context) {
+	searchParam := ctx.Query("search")
+	var searchTitle string
+	var searchContent string
+	var searchTagId int
+	if intValue, err := strconv.Atoi(searchParam); err == nil {
+		log.Println(intValue, "from intvalue")
+		searchTagId = intValue
+	} else {
+		searchContent = searchParam
+		searchTitle = searchParam
+	}
+	log.Println(searchContent, " ", searchTitle, " ", searchTagId)
+	blogSearchResponse := bh.blogService.SearchBlog(searchTitle, searchContent, searchTagId)
+	if blogSearchResponse == nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"message": "No blog found"})
+		return
+	}
+	ctx.JSON(http.StatusFound, gin.H{"blogs": blogSearchResponse})
 }
 
 func ConvertId(userId interface{}) uint {

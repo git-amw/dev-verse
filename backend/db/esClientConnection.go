@@ -48,14 +48,14 @@ func ESCheackIndexExists(client *elasticsearch.Client) {
 	for indexName, mapping := range indices {
 		res, err := client.Indices.Exists([]string{indexName})
 		if err != nil {
-			panic("Error in checking of index" + err.Error())
+			log.Fatalln("Error in checking of index" + err.Error())
 		}
 		defer res.Body.Close()
 		if res.StatusCode == http.StatusNotFound {
 			log.Println(indexName)
 			res, err := client.Indices.Create(indexName, client.Indices.Create.WithBody(strings.NewReader(mapping)))
 			if err != nil {
-				panic("error in index creation")
+				log.Fatalln("error in index creation")
 			}
 			if res.IsError() {
 				log.Fatalln("Error in index creation response ", res.StatusCode)
@@ -85,28 +85,38 @@ func GetIndices() map[string]string {
 			}
 		}`,
 		"blog-index": `{
-			"settings": {
+			 "settings": {
 				"number_of_shards": 5,
 				"number_of_replicas": 2
 			},
 			"mappings": {
-    			"properties": {
-					"id": 		   { "type": "integer" },
-      				"title":       { "type": "text" },
-      				"content":     { "type": "text" },
-      				"likes":       { "type": "integer" },
-     				"blogTags":    { 
-						"type": "nested" 
+				"properties": {
+					"id": {
+						"type": "integer"
+					},
+					"title": {
+						"type": "text"
+					},
+					"content": {
+						"type": "text"
+					},
+					"likes": {
+						"type": "integer"
+					},
+					"blogTags": {
+						"type": "nested",
 						"properties": {
-          					"tag_id":   { "type": "integer" },
-        				}
-		   			},
-					"is_deleted": {         // New field to indicate soft delete status
-        				"type": "boolean",
-       					"null_value": false    // Defaults to false if not provided
-      				}
-    			}
-  			}
+							"tag_id": {
+								"type": "integer"
+							}
+						}
+					},
+					"is_deleted": {
+						"type": "boolean",
+						"null_value": false
+					}
+				}
+			}
 		}`,
 	}
 	return indices

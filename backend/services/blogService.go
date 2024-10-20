@@ -15,7 +15,8 @@ type BlogServiceProvider interface {
 	DeleteTagFromBlog()
 	GetAllTags() []models.Tags
 	IncreaseLike(blogId int)
-	SearchTags()
+	SearchTags(tagValue string) models.TagSearchResponse
+	SearchBlog(searchTitle string, searchContent string, tagId int) []models.BlogSearchResponse
 }
 
 type BlogService struct {
@@ -42,6 +43,25 @@ func (bs *BlogService) CreateBlog(blogdata models.Blog, userId uint) (bool, stri
 		}
 		if result := bs.DB.Table("user_blogs").Create(&userblog); result.Error != nil {
 			return result.Error
+		}
+		document := map[string]interface{}{
+			"id":      blogdata.ID,
+			"title":   blogdata.Title,
+			"content": blogdata.Content,
+			"likes":   blogdata.Likes,
+		}
+		if len(blogdata.BlogTags) > 0 {
+			blogTags := make([]interface{}, len(blogdata.BlogTags))
+			for i, blogTag := range blogdata.BlogTags {
+				blogTags[i] = map[string]interface{}{
+					"tag_id": blogTag.TagId,
+				}
+			}
+			document["blogTags"] = blogTags
+		}
+		log.Println(document)
+		if err := bs.eslasticService.IndexNewBlog(document, blogdata.ID); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -133,8 +153,12 @@ func (bs *BlogService) GetAllTags() []models.Tags {
 	return allTags
 }
 
-func (bs *BlogService) SearchTags() {
-	bs.eslasticService.SearchTags()
+func (bs *BlogService) SearchTags(tagValue string) models.TagSearchResponse {
+	return bs.eslasticService.SearchTags(tagValue)
+}
+
+func (bs *BlogService) SearchBlog(searchTitle string, searchContent string, tagId int) []models.BlogSearchResponse {
+	return bs.eslasticService.SearchBlogs(searchTitle, searchContent, tagId)
 }
 
 func MapDTOToModel(dto models.BlogDTO) models.Blog {

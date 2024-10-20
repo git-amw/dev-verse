@@ -8,7 +8,7 @@ import (
 func main() {
 	routers.DBInstance = db.Connect()
 	routers.ESClient = db.ESClientConnection()
-	// db.ESCheackIndexExists(routers.ESClient)
+	db.ESCheackIndexExists(routers.ESClient)
 	route := routers.SetupRouter()
 	route.Run("localhost:8000")
 }

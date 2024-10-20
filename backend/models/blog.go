@@ -12,7 +12,6 @@ type Blog struct {
 	Content   string         `json:"content"`
 	Likes     int            `json:"likes"`
 	BlogTags  []BlogTags     `json:"blogTags" gorm:"foreignKey:BlogId;constraint:OnDelete:CASCADE;"`
-	UserBlogs []UserBlog     `json:"userBlogs" gorm:"foreignKey:BlogId;constraint:OnDelete:CASCADE;"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`

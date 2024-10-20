@@ -28,7 +28,8 @@ func SetupRouter() *gin.Engine {
 	routes.PUT("/updateblog", blogHandler.UpdateBlog)
 
 	routes.GET("/alltags", blogHandler.GetAllTags)
-	routes.GET("/searchtags", blogHandler.SearchTags)
+	routes.GET("/searchtag", blogHandler.SearchTags)
+	routes.GET("/searchblog", blogHandler.SearchBlog)
 
 	return routes
 }
