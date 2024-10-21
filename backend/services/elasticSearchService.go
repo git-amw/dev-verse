@@ -173,9 +173,9 @@ func (es *ElasticSearchService) SearchTags(tagValue string) models.TagSearchResp
 		}
 	 }`, tagValue)
 	log.Println(query)
-	// resData := SearchQuery(es, query, "tag-index")
+	resData := SearchQuery(es, query, "tag-index")
 	var tag models.TagSearchResponse
-	/* hit := resData["hits"].(map[string]interface{})["hits"].([]interface{})
+	hit := resData["hits"].(map[string]interface{})["hits"].([]interface{})
 	if len(hit) > 0 {
 		doc := hit[0].(map[string]interface{})
 		log.Println(doc)
@@ -183,7 +183,7 @@ func (es *ElasticSearchService) SearchTags(tagValue string) models.TagSearchResp
 		sourceBytes, _ := json.Marshal(source) // Convert the _source back to JSON
 		json.Unmarshal(sourceBytes, &tag)      // Unmarshal the JSON into the struct
 		log.Printf("Tag ID: %d, Tag Value: %s, Blogs with Tag: %d\n", tag.TagId, tag.TagValue, tag.BlogsWithTag)
-	} */
+	}
 	return tag
 }
 
