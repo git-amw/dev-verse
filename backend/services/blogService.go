@@ -1,31 +1,169 @@
 package services
 
-import "github.com/git-amw/backend/models"
+import (
+	"log"
 
-type BlogService interface {
-	CreateBlog(models.Blog)
+	"github.com/git-amw/backend/models"
+	"gorm.io/gorm"
+)
+
+type BlogServiceProvider interface {
+	CreateBlog(blogdata models.Blog, userId uint) (bool, string)
 	GetAllBlog() []models.Blog
-	UpdateBlog()
-	DeleteBlog()
+	UpdateBlog(models.BlogUpdate) (bool, string)
+	DeleteBlog(blogId int) (bool, string)
+	DeleteTagFromBlog()
+	GetAllTags() []models.Tags
+	IncreaseLike(blogId int)
+	SearchTags(tagValue string) models.TagSearchResponse
+	SearchBlog(searchTitle string, searchContent string, tagId int) []models.BlogSearchResponse
 }
 
-type blogService struct {
-	allBlogs []models.Blog
+type BlogService struct {
+	DB              *gorm.DB
+	eslasticService ElasticSearchProvider
 }
 
-func NewBlogService() BlogService {
-	return &blogService{}
+func NewBlogService(db *gorm.DB, eslasticService ElasticSearchProvider) BlogServiceProvider {
+	return &BlogService{
+		DB:              db,
+		eslasticService: eslasticService,
+	}
 }
 
-func (bs *blogService) CreateBlog(blogModel models.Blog) {
-	bs.allBlogs = append(bs.allBlogs, blogModel)
+func (bs *BlogService) CreateBlog(blogdata models.Blog, userId uint) (bool, string) {
+	err := bs.DB.Transaction(func(tx *gorm.DB) error {
+
+		if result := bs.DB.Table("blogs").Create(&blogdata); result.Error != nil {
+			return result.Error
+		}
+		userblog := models.UserBlog{
+			UserId: userId,
+			BlogId: blogdata.ID,
+		}
+		if result := bs.DB.Table("user_blogs").Create(&userblog); result.Error != nil {
+			return result.Error
+		}
+		document := map[string]interface{}{
+			"id":      blogdata.ID,
+			"title":   blogdata.Title,
+			"content": blogdata.Content,
+			"likes":   blogdata.Likes,
+		}
+		if len(blogdata.BlogTags) > 0 {
+			blogTags := make([]interface{}, len(blogdata.BlogTags))
+			for i, blogTag := range blogdata.BlogTags {
+				blogTags[i] = map[string]interface{}{
+					"tag_id": blogTag.TagId,
+				}
+			}
+			document["blogTags"] = blogTags
+		}
+		log.Println(document)
+		if err := bs.eslasticService.IndexNewBlog(document, blogdata.ID); err != nil {
+			return err
+		}
+		return nil
+	})
+	// bs.ChangeCountOfTags(blogdata.BlogTags, 1)
+	if err != nil {
+		return false, err.Error()
+	}
+	return true, "Blogs is Created"
 }
-func (bs *blogService) GetAllBlog() []models.Blog {
-	return bs.allBlogs
+
+func (bs *BlogService) GetAllBlog() []models.Blog {
+	var allblogs []models.Blog
+	bs.DB.Table("blogs").Preload("BlogTags").Find(&allblogs)
+	return allblogs
 }
-func (bs *blogService) UpdateBlog() {
+
+func (bs *BlogService) UpdateBlog(updatedata models.BlogUpdate) (bool, string) {
+	if res := bs.DB.Table("blogs").Updates(&updatedata); res.Error != nil {
+		return false, res.Error.Error()
+	}
+	// bs.AddBlogTags(updateDTO.BlogDTO, updateDTO.ID)
+	return true, "Done"
+}
+
+func (bs *BlogService) DeleteBlog(blogId int) (bool, string) {
+	var blogTags []models.BlogTags
+	if res := bs.DB.Table("blog_tags").Where("blog_id = ?", blogId).Find(&blogTags); res.Error != nil {
+		return false, res.Error.Error()
+	}
+	err := bs.DB.Transaction(func(tx *gorm.DB) error {
+
+		if result := bs.DB.Table("user_blogs").Where("blog_id = ?", blogId).Delete(&models.UserBlog{}); result.Error != nil {
+			log.Println(result.Error)
+			return result.Error
+		}
+
+		if result := bs.DB.Table("blog_tags").Where("blog_id = ?", blogId).Delete(&models.BlogTags{}); result.Error != nil {
+			log.Println(result.Error)
+			return result.Error
+		}
+
+		if result := bs.DB.Table("blogs").Delete(&models.Blog{}, blogId); result.Error != nil {
+			log.Println(result.Error)
+			return result.Error
+		}
+
+		return nil
+	})
+	if err != nil {
+		return false, err.Error()
+	}
+	/* var tagIds []int
+	for _, tag := range blogTags {
+		tagIds = append(tagIds, tag.TagId)
+	}
+	bs.ChangeCountOfTags(blogTags, -1) */
+	return true, "Successfully deleted!!"
+}
+
+func (bs *BlogService) DeleteTagFromBlog() {
 
 }
-func (bs *blogService) DeleteBlog() {
 
+func (bs *BlogService) IncreaseLike(blogId int) {
+	bs.DB.Table("blogs").Where("id = ?", blogId).UpdateColumn("likes", gorm.Expr("likes + ?", 1))
+}
+
+func (bs *BlogService) ChangeCountOfTags(blogtags []models.BlogTags, val int) {
+	var tagIds []int
+	for _, val := range blogtags {
+		tagIds = append(tagIds, val.TagId)
+	}
+	bs.DB.Table("tags").Where("id IN (?)", tagIds).UpdateColumn("blogs_with_tag", gorm.Expr("blogs_with_tag + ?", val))
+}
+
+func (bs *BlogService) GetAllTags() []models.Tags {
+	var allTags []models.Tags
+	bs.DB.Table("tags").Find(&allTags)
+	/* for _, tag := range allTags {
+		updatePayload := map[string]interface{}{
+			"doc": map[string]interface{}{
+				"id":             tag.ID,
+				"blogs_with_tag": tag.BlogsWithTag,
+				"tag_value":      tag.TagValue,
+			},
+		}
+		bs.eslasticService.UpdateTagDoc(updatePayload, tag.ID)
+	} */
+	return allTags
+}
+
+func (bs *BlogService) SearchTags(tagValue string) models.TagSearchResponse {
+	return bs.eslasticService.SearchTags(tagValue)
+}
+
+func (bs *BlogService) SearchBlog(searchTitle string, searchContent string, tagId int) []models.BlogSearchResponse {
+	return bs.eslasticService.SearchBlogs(searchTitle, searchContent, tagId)
+}
+
+func MapDTOToModel(dto models.BlogDTO) models.Blog {
+	return models.Blog{
+		Title:   dto.Title,
+		Content: dto.Content,
+	}
 }
